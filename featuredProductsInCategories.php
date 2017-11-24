@@ -31,6 +31,7 @@ require_once(dirname(__FILE__) . '/models/FPCAssociation.php');
 
 class featuredProductsInCategories extends Module
 {
+    
     protected $config_form = false;
 
     public function __construct()
@@ -99,23 +100,16 @@ class featuredProductsInCategories extends Module
      */
     public function getContent()
     {
-
-
-        FPCAssociation::addAssociations(1, array(3));
-        FPCAssociation::addAssociations(2, array(3));
-        FPCAssociation::addAssociations(3, array(3));
-        FPCAssociation::addAssociations(1, array(4));
-        FPCAssociation::addAssociations(2, array(4));
-        FPCAssociation::addAssociations(3, array(4));
-        FPCAssociation::addAssociations(4, array(4));
-        FPCAssociation::addAssociations(5, array(4));
-        FPCAssociation::addAssociations(1, array(5));
-        FPCAssociation::addAssociations(2, array(5));
-        FPCAssociation::addAssociations(3, array(5));
-        FPCAssociation::addAssociations(4, array(5));
-        FPCAssociation::addAssociations(5, array(5));
-        FPCAssociation::addAssociations(6, array(5));
-        FPCAssociation::addAssociations(7, array(5));
+        /**
+         * If submit categories in admin product tab
+         */
+        if (Tools::isSubmit('submitFeaturedProducts')) {
+            if (!Tools::getValue('categoryBox') || !ValidateCore::isArrayWithIds(Tools::getValue('categoryBox'))) {
+                $this->_isSubmitFeaturedProductsPostProcess();
+            } else {
+                echo $this->l('You must check one or more categories');
+            }
+        }
 
         /**
          * If values have been submitted in the form, process.
@@ -336,26 +330,31 @@ class featuredProductsInCategories extends Module
      */
     public function hookDisplayAdminProductsExtra()
     {
-        $id_product = 1;
-        $id_categories = array(2, 3, 4, 5);
-//        $id_categories = implode(',' , "2,3,4,5");
-
         $root = Category::getRootCategory();
-        $selected_cat = array($root->id);
-        $categories = array();
-        $categories = $this->getSelectedCategory($id_product);
+        $id_categories_enabled = array(3, 4, 5);
+        $id_categories_disabled = array(8);
 
-        //var_dump($categories);exit;
+//        $selected_cat = array($root->id);
+//        $categories = array();
+//        $categories = $this->getSelectedCategory($id_product);
 
         $tree = new HelperTreeCategories('associated-categories-tree', 'Associated categories');
         $tree->setUseCheckBox(true)
+            ->setFullTree(true)
             ->setAttribute('is_category_filter', $root->id)
             ->setRootCategory($root->id)
             ->setHeaderTemplate('tree_associated_header.tpl')
-            ->setSelectedCategories($id_categories)
+            ->setSelectedCategories($id_categories_enabled)
+            ->setDisabledCategories($id_categories_disabled)
             ->setUseSearch(true);
-
-        $this->context->smarty->assign('categories_tree', $tree->render());
+        $submitFormRouting = 'index.php?controller=AdminModules&configure=featuredProductsInCategories&tab_module=front_office_features&module_name=featuredProductsInCategories&token=' . Tools::getAdminTokenLite('AdminModules');
+       
+        
+//        index.php?controller=AdminModules&configure=featuredProductsInCategories&tab_module=front_office_features&module_name=featuredProductsInCategories&token=b71f8d479646d683b070d0da7a6feade
+        $this->context->smarty->assign(array(
+            'categories_tree' => $tree->render(),
+            'submitFormRouting' => $submitFormRouting
+        ));
         return $this -> display(__FILE__, 'views/templates/admin/displayAdminProductsExtra.tpl');
     }
 
@@ -368,5 +367,14 @@ class featuredProductsInCategories extends Module
             $categories[] = $key;
         }
         return $categories;
+    }
+    /**
+     * Send categories postProcess
+     */
+    private function _isSubmitFeaturedProductsPostProcess()
+    {
+        $categories = Tools::getValue('categoryBox');
+        var_dump($categories);
+        exit;
     }
 }
