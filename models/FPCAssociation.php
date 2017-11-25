@@ -32,6 +32,7 @@ class FPCAssociation extends ObjectModelCore
     public $id_association; // Identifiant unique
     public $id_product; // Id du produit associé
     public $id_category; // Id de la catégorie associée
+    
     // Structure de la table
     public static $definition = array('table' => 'fpc_association', 'primary' => 'id_association',
         'multilang' => false,

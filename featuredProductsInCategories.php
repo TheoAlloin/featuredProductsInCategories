@@ -29,7 +29,7 @@ if (!defined('_PS_VERSION_')) {
 
 require_once(dirname(__FILE__) . '/models/FPCAssociation.php');
 
-class featuredProductsInCategories extends Module
+class FeaturedProductsInCategories extends Module
 {
     
     protected $config_form = false;
@@ -104,10 +104,13 @@ class featuredProductsInCategories extends Module
          * If submit categories in admin product tab
          */
         if (Tools::isSubmit('submitFeaturedProducts')) {
-            if (!Tools::getValue('categoryBox') || !ValidateCore::isArrayWithIds(Tools::getValue('categoryBox'))) {
+            if (Tools::getValue('categoryBox') || ValidateCore::isArrayWithIds(Tools::getValue('categoryBox'))) {
                 $this->_isSubmitFeaturedProductsPostProcess();
             } else {
-                echo $this->l('You must check one or more categories');
+                            echo 'no hi';
+
+                $error = $this->l('You must check one or more categories');
+                $this->displayAdminProductsExtra($error);
             }
         }
 
@@ -328,9 +331,11 @@ class featuredProductsInCategories extends Module
     /**
      * Product admin tab
      */
-    public function hookDisplayAdminProductsExtra()
+    public function hookDisplayAdminProductsExtra($params)
     {
         $root = Category::getRootCategory();
+        $submitFormRouting = 'index.php?controller=AdminModules&configure=featuredProductsInCategories&tab_module=front_office_features&module_name=featuredProductsInCategories&token=' . Tools::getAdminTokenLite('AdminModules');
+
         $id_categories_enabled = array(3, 4, 5);
         $id_categories_disabled = array(8);
 
@@ -347,14 +352,11 @@ class featuredProductsInCategories extends Module
             ->setSelectedCategories($id_categories_enabled)
             ->setDisabledCategories($id_categories_disabled)
             ->setUseSearch(true);
-        $submitFormRouting = 'index.php?controller=AdminModules&configure=featuredProductsInCategories&tab_module=front_office_features&module_name=featuredProductsInCategories&token=' . Tools::getAdminTokenLite('AdminModules');
-       
-        
-//        index.php?controller=AdminModules&configure=featuredProductsInCategories&tab_module=front_office_features&module_name=featuredProductsInCategories&token=b71f8d479646d683b070d0da7a6feade
         $this->context->smarty->assign(array(
             'categories_tree' => $tree->render(),
             'submitFormRouting' => $submitFormRouting
         ));
+        
         return $this -> display(__FILE__, 'views/templates/admin/displayAdminProductsExtra.tpl');
     }
 
@@ -374,7 +376,24 @@ class featuredProductsInCategories extends Module
     private function _isSubmitFeaturedProductsPostProcess()
     {
         $categories = Tools::getValue('categoryBox');
+        $id_product = Context::getContext()->smarty;
+        var_dump($id_product);
+        exit;
+        FPCAssociation::deleteAllAssociationsByProductId($id_product);
         var_dump($categories);
         exit;
+    }
+    
+    /*
+     * Redirect user to the Admin Product Tab
+     */
+    private function displayAdminProductsExtra($error)
+    {
+        //a completer
+        if (!ValidateCore::isCleanHtml($error)) {
+            echo 'erreur !';
+            exit;
+        }
+        echo '_postProcess() à définir';exit;
     }
 }
