@@ -104,13 +104,14 @@ class FeaturedProductsInCategories extends Module
          * If submit categories in admin product tab
          */
         if (Tools::isSubmit('submitFeaturedProducts')) {
-            if (Tools::getValue('categoryBox') || ValidateCore::isArrayWithIds(Tools::getValue('categoryBox'))) {
+            if (Tools::getValue('categoryBox') && ValidateCore::isArrayWithIds(Tools::getValue('categoryBox')) && (int)Tools::getValue('current_product') ) {
                 $this->_isSubmitFeaturedProductsPostProcess();
-            } else {
-                            echo 'no hi';
-
+            } elseif ((int)Tools::getValue('current_product')) {
                 $error = $this->l('You must check one or more categories');
-                $this->displayAdminProductsExtra($error);
+                $this->redirectAdminTab((int)Tools::getValue('id_product'));
+                $this->hookDisplayAdminProductsExtra($error);
+            } else {
+                echo 'fatal error'; die();
             }
         }
 
@@ -333,12 +334,17 @@ class FeaturedProductsInCategories extends Module
      */
     public function hookDisplayAdminProductsExtra($params)
     {
+        $id_product = Tools::getValue('id_product');
         $root = Category::getRootCategory();
         $submitFormRouting = 'index.php?controller=AdminModules&configure=featuredProductsInCategories&tab_module=front_office_features&module_name=featuredProductsInCategories&token=' . Tools::getAdminTokenLite('AdminModules');
 
         $id_categories_enabled = array(3, 4, 5);
         $id_categories_disabled = array(8);
-
+        
+        if ($params) {
+            $error = $params;
+        }
+        
 //        $selected_cat = array($root->id);
 //        $categories = array();
 //        $categories = $this->getSelectedCategory($id_product);
@@ -354,7 +360,9 @@ class FeaturedProductsInCategories extends Module
             ->setUseSearch(true);
         $this->context->smarty->assign(array(
             'categories_tree' => $tree->render(),
-            'submitFormRouting' => $submitFormRouting
+            'submitFormRouting' => $submitFormRouting,
+            'current_product' => $id_product,
+            'error' => $error
         ));
         
         return $this -> display(__FILE__, 'views/templates/admin/displayAdminProductsExtra.tpl');
@@ -375,25 +383,29 @@ class FeaturedProductsInCategories extends Module
      */
     private function _isSubmitFeaturedProductsPostProcess()
     {
-        $categories = Tools::getValue('categoryBox');
-        $id_product = Context::getContext()->smarty;
-        var_dump($id_product);
-        exit;
-        FPCAssociation::deleteAllAssociationsByProductId($id_product);
-        var_dump($categories);
-        exit;
+        $id_categories = Tools::getValue('categoryBox');
+        $id_product = Tools::getValue('current_product');
+        $errors = array();
+        
+        if ($id_categories && (int)$id_product) {
+            FPCAssociation::deleteAllAssociationsByProductId($id_product);
+            if (!FPCAssociation::addAssociations($id_product, $id_categories)) {
+                $errors[] = $this->l('Can\'t add associations');
+            }
+        } else {
+            $errors[] = $this->l('Can\'t retrive id_categories sends or current id_product');
+        }
+        
+        /***** display errors if needed *****/
+        if (!count($errors)) {
+            return true;
+        } else {
+            return $errors;
+        }
     }
     
-    /*
-     * Redirect user to the Admin Product Tab
-     */
-    private function displayAdminProductsExtra($error)
-    {
-        //a completer
-        if (!ValidateCore::isCleanHtml($error)) {
-            echo 'erreur !';
-            exit;
-        }
-        echo '_postProcess() à définir';exit;
+    private function redirectAdminTab($id_product) {
+        $url = 'index.php?controller=AdminProducts&token='.Tools::getAdminTokenLite('AdminProducts') . '&id_product=' . (int)$id_product . '&action=ModuleFeaturedProductsInCategories&updateproduct';
+        var_dump(Tools::redirectAdmin($url));exit;
     }
 }

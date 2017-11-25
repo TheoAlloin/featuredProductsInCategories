@@ -51,6 +51,8 @@ class FPCAssociation extends ObjectModelCore
 
     /**
      * Ajout d'associations entre un produit et une ou plusieurs catégories
+     * @id_product = int
+     * @id_categories = array()
      */
     public static function addAssociations($id_product, $id_categories)
     {
