@@ -63,7 +63,20 @@ class FPCAssociation extends ObjectModelCore
             $association->save();
         }
     }
-
+    
+    /* render filtered categories */
+    public static function getCustomIDCategories($id_lang = false, $active = true, $order = true, $where = '')
+    {
+        $result = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS('
+            SELECT c.id_category
+			FROM `'._DB_PREFIX_.'category` c
+			'.Shop::addSqlAssociation('category', 'c').'
+			LEFT JOIN `'._DB_PREFIX_.'category_lang` cl ON c.`id_category` = cl.`id_category`'.Shop::addSqlRestrictionOnLang('cl').'
+			WHERE 1 '.$where.' '.($id_lang ? 'AND `id_lang` = '.(int)$id_lang : '').'
+			'.($active ? 'AND `active` = 1' : '' )
+        );
+        return $result;
+    }
     /**
      * Récupération de la liste des éléments
      */

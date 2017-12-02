@@ -101,21 +101,6 @@ class FeaturedProductsInCategories extends Module
     public function getContent()
     {
         /**
-         * If submit categories in admin product tab
-         */
-        if (Tools::isSubmit('submitFeaturedProducts')) {
-            if (Tools::getValue('categoryBox') && ValidateCore::isArrayWithIds(Tools::getValue('categoryBox')) && (int)Tools::getValue('current_product') ) {
-                $this->_isSubmitFeaturedProductsPostProcess();
-            } elseif ((int)Tools::getValue('current_product')) {
-                $error = $this->l('You must check one or more categories');
-                $this->redirectAdminTab((int)Tools::getValue('id_product'));
-                $this->hookDisplayAdminProductsExtra($error);
-            } else {
-                echo 'fatal error'; die();
-            }
-        }
-
-        /**
          * If values have been submitted in the form, process.
          */
         if (((bool) Tools::isSubmit('submitFeaturedProductsInCategoriesModule')) == true) {
@@ -335,19 +320,17 @@ class FeaturedProductsInCategories extends Module
     public function hookDisplayAdminProductsExtra($params)
     {
         $id_product = Tools::getValue('id_product');
-        $root = Category::getRootCategory();
-        $submitFormRouting = 'index.php?controller=AdminModules&configure=featuredProductsInCategories&tab_module=front_office_features&module_name=featuredProductsInCategories&token=' . Tools::getAdminTokenLite('AdminModules');
+        $configuration = $this->assignProductConfiguration($id_product);
+        
+        $this->renderTree($configuration['id_categories_enabled'], $configuration['id_categories_disabled']);
+        $this->_isSubmitFeaturedProductsPostProcess();
 
-        $id_categories_enabled = array(3, 4, 5);
-        $id_categories_disabled = array(8);
-        
-        if ($params) {
-            $error = $params;
-        }
-        
-//        $selected_cat = array($root->id);
-//        $categories = array();
-//        $categories = $this->getSelectedCategory($id_product);
+        return $this -> display(__FILE__, 'views/templates/admin/displayAdminProductsExtra.tpl');
+    }
+
+    public function renderTree($id_categories_enabled, $id_categories_disabled)
+    {
+        $root = Category::getRootCategory();
 
         $tree = new HelperTreeCategories('associated-categories-tree', 'Associated categories');
         $tree->setUseCheckBox(true)
@@ -357,55 +340,113 @@ class FeaturedProductsInCategories extends Module
             ->setHeaderTemplate('tree_associated_header.tpl')
             ->setSelectedCategories($id_categories_enabled)
             ->setDisabledCategories($id_categories_disabled)
-            ->setUseSearch(true);
-        $this->context->smarty->assign(array(
-            'categories_tree' => $tree->render(),
-            'submitFormRouting' => $submitFormRouting,
-            'current_product' => $id_product,
-            'error' => $error
-        ));
-        
-        return $this -> display(__FILE__, 'views/templates/admin/displayAdminProductsExtra.tpl');
-    }
+            ->setUseSearch(true)
+            ->setInputName('categoryBox2');
 
+        
+        $this->context->smarty->assign('categories_tree', $tree->render());
+    }
+    /*
+     * if product have configuration registered
+     */
+    private function assignProductConfiguration( $id_product )
+    {
+        $id_categories_enabled = [];
+        $id_categories_disabled = [];
+        $product = new Product($id_product);
+        $category = new CategoryCore();
+
+        $params = array('id_product' => $id_product);
+        
+        /*** get categories enabled for render tree ***/
+        $list_configuration = FPCAssociation::getList($params);
+        foreach ($list_configuration as $configuration)
+        {
+            if ($configuration['id_category']) {
+                array_push($id_categories_enabled, $configuration['id_category']);
+            }
+        }
+        var_dump($id_categories_enabled);
+        
+        /*** get categories disabled for render tree ***/
+        $id_categories_enabled_formated = '';
+        $id_categories_disabled_before = array(8);
+        
+        /* format for FPCAssociation::getCustomCategories($sql_filter) */
+        foreach($id_categories_enabled as $id_category_enabled) {
+            if( !next( $id_categories_enabled ) ) {
+                $id_categories_enabled_formated .= ($id_category_enabled);
+            } else {
+                $id_categories_enabled_formated .= ($id_category_enabled . ',' );
+            }
+        }
+        
+        /* get all category not in enabled categories */
+        $sql_filter = 'AND c.id_category NOT IN ( ' . $id_categories_enabled_formated . ' )';
+        $list_categories = FPCAssociation::getCustomIDCategories(false, false, false, $sql_filter);
+        
+        /***
+         * probleme retourne aussi les categories parentes des autres catégories. 
+         * Rend donc indisponible si la category A(enabled) à un parent commun avec la category B(disabled)
+         * A FIX
+         */
+        foreach ($list_categories as $category) {
+            array_push($id_categories_disabled, (int)$category['id_category']);
+        }
+        
+        var_dump($id_categories_disabled_before);
+        var_dump($id_categories_disabled);
+
+        $result = [
+            'id_categories_enabled' => $id_categories_enabled,
+            'id_categories_disabled' => $id_categories_disabled
+        ];
+        return $result;
+    }
+    
     private function getSelectedCategory($id_product)
     {
-        $default_category = $this->context->cookie->id_category_products_filter ? $this->context->cookie->id_category_products_filter : Context::getContext()->shop->id_category;
-        $selected_cat = Category::getCategoryInformations(Tools::getValue('categoryBox', array($default_category)), $this->default_form_language);
-
-        foreach ($selected_cat as $key => $category) {
-            $categories[] = $key;
-        }
+//        $default_category = $this->context->cookie->id_category_products_filter ? $this->context->cookie->id_category_products_filter : Context::getContext()->shop->id_category;
+//        $selected_cat = Category::getCategoryInformations(Tools::getValue('categoryBox', array($default_category)), $this->default_form_language);
+//
+//        foreach ($selected_cat as $key => $category) {
+//            $categories[] = $key;
+//        }
         return $categories;
     }
     /**
      * Send categories postProcess
      */
-    private function _isSubmitFeaturedProductsPostProcess()
+    public function _isSubmitFeaturedProductsPostProcess()
     {
-        $id_categories = Tools::getValue('categoryBox');
-        $id_product = Tools::getValue('current_product');
-        $errors = array();
-        
-        if ($id_categories && (int)$id_product) {
-            FPCAssociation::deleteAllAssociationsByProductId($id_product);
-            if (!FPCAssociation::addAssociations($id_product, $id_categories)) {
-                $errors[] = $this->l('Can\'t add associations');
+        /**
+         * If submit categories in admin product tab
+         */
+        if (Tools::isSubmit('submitFeaturedProducts')) {
+            if (Tools::getValue('categoryBox2') && ValidateCore::isArrayWithIds(Tools::getValue('categoryBox2'))) {
+                $id_categories = Tools::getValue('categoryBox2');
+                $id_product = Tools::getValue('id_product');
+                $product = new Product($id_product);
+                $id_lang = $this->context->language->id;
+                $categories_associated = [];
+                $errors = [];
+
+                if ($id_categories && (int)$id_product) {
+                    var_dump($id_categories);
+                    var_dump($id_product);
+                    FPCAssociation::deleteAllAssociationsByProductId($id_product);
+                    if (FPCAssociation::addAssociations($id_product, $id_categories)) {
+                        $this -> context -> smarty -> assign('confirmation', 'ok');
+                    }
+                } else {
+                    $errors[] = $this->l('Can\'t retrieved id_categories sends or current id_product');
+                }
             }
-        } else {
-            $errors[] = $this->l('Can\'t retrive id_categories sends or current id_product');
         }
         
         /***** display errors if needed *****/
-        if (!count($errors)) {
-            return true;
-        } else {
-            return $errors;
+        if (count($errors)) {
+            $this -> context -> smarty -> assign('error', $errors);
         }
-    }
-    
-    private function redirectAdminTab($id_product) {
-        $url = 'index.php?controller=AdminProducts&token='.Tools::getAdminTokenLite('AdminProducts') . '&id_product=' . (int)$id_product . '&action=ModuleFeaturedProductsInCategories&updateproduct';
-        var_dump(Tools::redirectAdmin($url));exit;
     }
 }
