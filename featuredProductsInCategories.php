@@ -360,17 +360,25 @@ class FeaturedProductsInCategories extends Module
         
         /*** get categories enabled for render tree ***/
         $list_configuration = FPCAssociation::getList($params);
+        $id_parent_categories_enabled = [];
+        
         foreach ($list_configuration as $configuration)
         {
             if ($configuration['id_category']) {
-                array_push($id_categories_enabled, $configuration['id_category']);
+                array_push($id_categories_enabled, (int)$configuration['id_category']);
+
+                $a_Category = new CategoryCore($configuration['id_category']);
+                $categories_parent = $a_Category->getParentsCategories();
+                
+                /* add parents of current category for be enabled  */
+                foreach ($categories_parent as $category_parent) {
+                    array_push($id_parent_categories_enabled, (int)$category_parent['id_category']);
+                }
             }
         }
-        var_dump($id_categories_enabled);
-        
+
         /*** get categories disabled for render tree ***/
         $id_categories_enabled_formated = '';
-        $id_categories_disabled_before = array(8);
         
         /* format for FPCAssociation::getCustomCategories($sql_filter) */
         foreach($id_categories_enabled as $id_category_enabled) {
@@ -382,7 +390,7 @@ class FeaturedProductsInCategories extends Module
         }
         
         /* get all category not in enabled categories */
-        $sql_filter = 'AND c.id_category NOT IN ( ' . $id_categories_enabled_formated . ' )';
+        $sql_filter = 'AND c.id_category NOT IN ( ' . $id_categories_enabled_formated . ' ) AND c.id_category != 1';
         $list_categories = FPCAssociation::getCustomIDCategories(false, false, false, $sql_filter);
         
         /***
@@ -393,27 +401,19 @@ class FeaturedProductsInCategories extends Module
         foreach ($list_categories as $category) {
             array_push($id_categories_disabled, (int)$category['id_category']);
         }
-        
-        var_dump($id_categories_disabled_before);
-        var_dump($id_categories_disabled);
+
+        $product_categories_associated = $product->getCategories();
+        $id_categories_disabled = array_diff($id_categories_disabled, $id_parent_categories_enabled);
+        $id_categories_disabled = array_diff($id_categories_disabled, $product_categories_associated);
 
         $result = [
             'id_categories_enabled' => $id_categories_enabled,
             'id_categories_disabled' => $id_categories_disabled
         ];
+        
         return $result;
     }
     
-    private function getSelectedCategory($id_product)
-    {
-//        $default_category = $this->context->cookie->id_category_products_filter ? $this->context->cookie->id_category_products_filter : Context::getContext()->shop->id_category;
-//        $selected_cat = Category::getCategoryInformations(Tools::getValue('categoryBox', array($default_category)), $this->default_form_language);
-//
-//        foreach ($selected_cat as $key => $category) {
-//            $categories[] = $key;
-//        }
-        return $categories;
-    }
     /**
      * Send categories postProcess
      */
@@ -432,8 +432,6 @@ class FeaturedProductsInCategories extends Module
                 $errors = [];
 
                 if ($id_categories && (int)$id_product) {
-                    var_dump($id_categories);
-                    var_dump($id_product);
                     FPCAssociation::deleteAllAssociationsByProductId($id_product);
                     if (FPCAssociation::addAssociations($id_product, $id_categories)) {
                         $this -> context -> smarty -> assign('confirmation', 'ok');
@@ -445,7 +443,7 @@ class FeaturedProductsInCategories extends Module
         }
         
         /***** display errors if needed *****/
-        if (count($errors)) {
+        if (!empty($errors) && count($errors)) {
             $this -> context -> smarty -> assign('error', $errors);
         }
     }
