@@ -393,17 +393,13 @@ class FeaturedProductsInCategories extends Module
         $sql_filter = 'AND c.id_category NOT IN ( ' . $id_categories_enabled_formated . ' ) AND c.id_category != 1';
         $list_categories = FPCAssociation::getCustomIDCategories(false, false, false, $sql_filter);
         
-        /***
-         * probleme retourne aussi les categories parentes des autres catégories. 
-         * Rend donc indisponible si la category A(enabled) à un parent commun avec la category B(disabled)
-         * A FIX
-         */
         foreach ($list_categories as $category) {
             array_push($id_categories_disabled, (int)$category['id_category']);
         }
-
-        $product_categories_associated = $product->getCategories();
+        
         $id_categories_disabled = array_diff($id_categories_disabled, $id_parent_categories_enabled);
+        /* supprime des categories desactivées les catégories auxquelles sont associé le produit courant */
+        $product_categories_associated = $product->getCategories();
         $id_categories_disabled = array_diff($id_categories_disabled, $product_categories_associated);
 
         $result = [
